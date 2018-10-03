@@ -18,22 +18,28 @@ Explore the gapminder dataframe
 **2a. Get the maximum and minimum of GDP per capita for all continents.**  
 
 ```{r}
-maxmin_gdpPercap<-gapminder %>% 
+b<-gapminder %>% 
   group_by(continent) %>% 
   summarise(max_gdpPercap=max(gdpPercap),
-            min_gdpPercap=min(gdpPercap)) %>% 
-  knitr::kable()
+            min_gdpPercap=min(gdpPercap))
+  knitr::kable(b)
 ```
 **2b. Look at the spread of GDP per capita within the continents.**  
 
 ```{r}
 gapminder %>% 
-  group_by(year) %>% 
-  ggplot(aes(x=year)) + #x axis=year
-  geom_line(aes(y=max(gdpPercap),color=continent))+ #geom_line plots the line with maximum gdpPercap variable as y axis
-  geom_line(aes(y=min(gdpPercap),color=continent))+ #geom_line plots the line with minimum gdpPercap variable as y axis
+  group_by(continent,year) %>% 
+  summarise(max_gdpPercap=max(gdpPercap),
+            min_gdpPercap=min(gdpPercap)) %>% 
+  ggplot(aes(x=year))+  #x axis=year
+  geom_line(aes(y=max_gdpPercap,color=continent))+ #geom_line plots the line with maximum gdpPercap variable as y axis
+  geom_line(aes(y=min_gdpPercap,color=continent))+ #geom_line plots the line with minimum gdpPercap variable as y axis
   facet_grid(continent~.)+ #facet separates the plots by continent
   labs(title="Max and Min of GDP per capita between 1952 and 2007",x="year",y="GDP per capita")
+
+
+
+
   
 ```
 
@@ -45,21 +51,92 @@ gapminder %>%
   ggplot(aes( continent, gdpPercap )) +
   scale_y_log10()+
   geom_boxplot( aes( fill = continent ))+
-  geom_jitter(width=0.2,alpha=0.2)
+  geom_jitter(width=0.2,alpha=0.2)+
   labs( x = "continent", y = "GDP per capita", 
               title = "Boxplot of GDP per capita for each continent")
 
 ```
 
+
 ```{r}
+gapminder %>% 
+  group_by(continent,year) %>% 
+  summarise(mean_gdpPercap=mean(gdpPercap),
+            sd_gdpPercap=sd(gdpPercap)) %>% 
+  ggplot(aes(x=year))+ #x axis=year
+  scale_y_log10()+
+  geom_point(aes(y=mean_gdpPercap,color=continent))+
+  geom_line(aes(y=mean_gdpPercap,color=continent))+ #geom_line plots the line with maximum gdpPercap variable as y axis
+  geom_errorbar(aes(ymin=mean_gdpPercap-sd_gdpPercap,ymax=mean_gdpPercap+sd_gdpPercap,width=-.9,color=continent))+
+  facet_grid(continent~.)+
+  labs(title="Mean of GDP per capita between 1952 and 2007",x="year",y="GDP per capita")
 
 ```
 
+Conclusion
+-The Oceania continent has the highest mean of GDP/captita while the Africa lowest. At the same time, the standard deviation of Americas are high while the Asia continent has the lowest SD.
 
-  Compute a trimmed mean of life expectancy for different years. Or a weighted mean, weighting by population. Just try something other than the plain vanilla mean.
+**2c. Compute a trimmed mean of life expectancy for different years. Or a weighted mean, weighting by population. Just try something other than the plain vanilla mean.**  
 
-How is life expectancy changing over time on different continents?
+```{r}
+gapminder %>% 
+  group_by(year) %>% 
+  summarise(num=sum(as.numeric(pop)),
+            mean=mean(lifeExp),
+            weighted_mean=weighted.mean(lifeExp,pop)) %>%  #to calculate the weighted mean based on population
+  ggplot(aes(x=year))+
+  geom_line(aes(y=mean,color=1))+
+  geom_line(aes(y=weighted_mean,color=2))+
+  labs(x="year",y="lifeExp",title="Mean/Weighted mean of lifeExp for different years")
+  
+  
+```
 
-Report the absolute and/or relative abundance of countries with low life expectancy over time by continent: Compute some measure of worldwide life expectancy – you decide – a mean or median or some other quantile or perhaps your current age. Then determine how many countries on each continent have a life expectancy less than this benchmark, for each year.
+**2d.How is life expectancy changing over time on different continents? **
+**Report the absolute and/or relative abundance of countries with low life expectancy over time by continent: Compute some measure of worldwide life expectancy – you decide – a mean or median or some other quantile or perhaps your current age. Then determine how many countries on each continent have a life expectancy less than this benchmark, for each year.**
 
-Find countries with interesting stories. Open-ended and, therefore, hard. Promising but unsuccessful attempts are encouraged. This will generate interesting questions to follow up on in class.
+First, I calculate the mean lifeExp of that year for all the countries.
+```{r}
+eachyear_lifeExp<-gapminder %>% 
+  select(year,lifeExp) %>% 
+  group_by(year) %>% 
+  summarise(mean_lifeExp=mean(lifeExp))
+knitr::kable(eachyear_lifeExp)
+
+```
+Next, I want to  calculate whether the lifeExp for each country is less than the mean for continent each year.By the previous knowledge, the dataframe has 1704 rows, so we have to repeat the mean_LifeExp for 142 times.
+
+```{r}
+a<-gapminder %>% 
+  mutate(mean_lifeExp=rep(eachyear_lifeExp$mean_lifeExp,142)) %>% 
+  mutate(low=(lifeExp < mean_lifeExp)) %>% 
+  select(continent,country,year, lifeExp,mean_lifeExp,low)
+
+Percentage_lifeExp<-a %>% 
+  group_by(continent,year) %>% 
+  summarise(n_percentlow=sum(low),
+            n_countries=n(),
+            percentage_low=100*n_percentlow/n_countries)
+knitr::kable(Percentage_lifeExp)
+
+Percentage_lifeExp %>% 
+  ggplot(aes(year,percentage_low,color=continent))+
+  geom_line()+
+  labs(x="year",y="Percentage",title="Percentage of countries lower than the mean life Expectancy in the continent over the years")
+
+knitr::kable(Percentage_lifeExp)
+```
+
+** 2e.Find countries with interesting stories. Open-ended and, therefore, hard. Promising but unsuccessful attempts are encouraged. This will generate interesting questions to follow up on in class.**
+
+```{r}
+Asiancountry2007 <-subset(gapminder,(year==2007)&(continent=="Asia"),select=c(country,pop))
+                         
+Asiancountry2007plot<-ggplot(Asiancountry2007,aes(country,pop,color=country))+
+  geom_point()+
+  labs(x="country",y="pop",title="The population of Asian countries in 2007")
+Asiancountry2007plot
+
+# The plot tells us China and India have the most population in Asia. 
+
+```
